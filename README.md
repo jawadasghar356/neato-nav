@@ -24,8 +24,10 @@ interface; a simulator of my apartment is used as a test bench where ground trut
 include/neato/   serial port, Neato text protocol, IRobot interface, real robot backend
 include/core/    geometry and differential-drive odometry
 include/sim/     map loader, ray casting, simulated robot (encoders, bumpers, LDS model)
-apps/            battery_monitor (real robot), apartment_sim (simulation)
-tests/           parser and odometry tests, partly with output recorded from the robot
+include/datalog/ drive recorder (JSON Lines)
+apps/            teleop, battery_monitor, apartment_sim
+tests/           parser, odometry and recorder tests, partly with output recorded from the robot
+tools/           Python scripts for looking at recordings
 maps/            apartment.map, plain text, editable without recompiling
 viewer/          browser playback of simulation runs
 data/            recordings from the real robot
@@ -57,6 +59,18 @@ Real robot (robot on the dock, USB connected):
 battery_monitor.exe COM9 60 battery_log.csv                 # Windows
 ```
 
+Keyboard driving with recording (w/a/s/d, space to stop, +/- speed, q to quit):
+
+```
+./build/teleop                 # real robot on /dev/ttyACM0, lift it off the dock first
+./build/teleop --sim           # simulated robot in the apartment
+python3 tools/plot_drive.py logs/drive_<date>_<time>.jsonl
+```
+
+Each key press drives a 100 mm segment or a 15° turn; holding the key keeps the robot moving,
+releasing it stops the robot within one segment. A bumper hit stops and backs off. Every run
+is recorded to `logs/` (format: [ADR 0002](docs/decisions/0002-drive-log-format.md)).
+
 Simulation:
 
 ```
@@ -86,7 +100,8 @@ angles, and specular reflections from glass that produce ghost points.
 - [x] Hardware abstraction with real and simulated backend
 - [x] Apartment simulator and replay viewer
 - [x] Battery recovery, first LDS scan and wheel test on the real robot
-- [ ] Teleoperation and data logging (timestamped scans and odometry)
+- [x] Teleoperation and drive recorder, tested in simulation
+- [ ] First recorded drive through the apartment on the real robot
 - [ ] Calibration: encoder scale, wheelbase (UMBmark), LDS angle direction
 - [ ] Scan matching and occupancy grid mapping of the apartment
 - [ ] Particle filter localisation

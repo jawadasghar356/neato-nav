@@ -19,6 +19,7 @@ add_library(neato_core
   src/sim_robot.cpp
   src/world.cpp
   src/odometry.cpp
+  src/drive_log.cpp
 )
 target_include_directories(neato_core PUBLIC include)
 
@@ -30,8 +31,18 @@ target_link_libraries(battery_monitor neato_core)
 add_executable(apartment_sim apps/apartment_sim.cpp)
 target_link_libraries(apartment_sim neato_core)
 
+# Keyboard driving with recording, real robot or --sim
+add_executable(teleop apps/teleop.cpp)
+target_link_libraries(teleop neato_core)
+
 # Unit tests for the text parsers
 enable_testing()
 add_executable(test_parsers tests/test_parsers.cpp)
 target_link_libraries(test_parsers neato_core)
 add_test(NAME parsers COMMAND test_parsers)
+
+# Recorder test: drives the simulator and writes a log that CI plots
+add_executable(test_drive_log tests/test_drive_log.cpp)
+target_link_libraries(test_drive_log neato_core)
+add_test(NAME drive_log
+         COMMAND test_drive_log ${CMAKE_SOURCE_DIR}/maps/apartment.map ${CMAKE_BINARY_DIR}/drive_log_test.jsonl)
