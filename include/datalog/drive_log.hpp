@@ -23,7 +23,7 @@ struct LogHeader {
     std::string source;            // e.g. "real:/dev/ttyACM0" or "sim:maps/apartment.map"
     double wheelbase_m = 0.248;
     double lds_offset_m = -0.09;   // LDS position along the robot x axis, relative to the axle
-    std::string angle_convention = "deg, 0 = forward, counter-clockwise (unverified on hardware)";
+    std::string angle_convention = "deg, 0 = forward, counter-clockwise";
 };
 
 class DriveLogWriter {

@@ -93,6 +93,10 @@ angles, and specular reflections from glass that produce ghost points.
   weak readings by setting bit 14 of the distance (e.g. 16954 = 570 mm, weak). The parser
   originally read these as 17 m; fixed and covered by a test using the recorded lines.
 - Encoders: 1003 / 1004 mm reported for a 1000 mm command. Tape measurement pending.
+- First teleop drive through the apartment: 20 m in 7 minutes, 1903 scans recorded. Projected
+  with odometry only, walls already appear doubled after a few turns, mostly from heading
+  drift. The recording also showed that the LDS counts angles counter-clockwise and that the
+  zero-distance stop command is ignored by the firmware (see `docs/calibration.md`).
 
 ## Roadmap
 

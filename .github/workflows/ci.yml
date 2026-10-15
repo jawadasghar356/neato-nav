@@ -27,3 +27,5 @@ jobs:
         with:
           name: drive-log-plot
           path: build/drive_log_test.png
+      - name: Check LDS direction on the recorded real drive
+        run: python3 tools/check_lds_direction.py data/drive_2026-10-15_apartment.jsonl.gz
