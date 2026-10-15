@@ -18,3 +18,12 @@ jobs:
         run: ctest --test-dir build --output-on-failure
       - name: Simulation smoke test
         run: ./build/apartment_sim maps/apartment.map build/sim_log.json 1
+      - name: Plot recorded test drive
+        run: |
+          pip install matplotlib
+          python3 tools/plot_drive.py build/drive_log_test.jsonl -o build/drive_log_test.png
+      - name: Upload plot
+        uses: actions/upload-artifact@v4
+        with:
+          name: drive-log-plot
+          path: build/drive_log_test.png

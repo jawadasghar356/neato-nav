@@ -11,6 +11,7 @@ cmake-build-*/
 *.log
 battery_log.csv
 sim_log.json
+logs/
 
 # OS junk
 .DS_Store
