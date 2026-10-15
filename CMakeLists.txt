@@ -35,6 +35,10 @@ target_link_libraries(apartment_sim neato_core)
 add_executable(teleop apps/teleop.cpp)
 target_link_libraries(teleop neato_core)
 
+# Experiment: which serial command stops the wheels mid-move (docs/calibration.md)
+add_executable(stop_test apps/stop_test.cpp)
+target_link_libraries(stop_test neato_core)
+
 # Unit tests for the text parsers
 enable_testing()
 add_executable(test_parsers tests/test_parsers.cpp)

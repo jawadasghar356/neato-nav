@@ -7,9 +7,10 @@ Right: the last scan in the robot frame (valid points and weak points separately
 Odometry drifts, so walls in the left plot get thicker the longer the drive. That smear is
 exactly what scan matching will remove later.
 
-Usage: plot_drive.py drive.jsonl [-o plot.png] [--every N]
+Usage: plot_drive.py drive.jsonl[.gz] [-o plot.png] [--every N]
 """
 import argparse
+import gzip
 import json
 import math
 import sys
@@ -17,7 +18,8 @@ import sys
 
 def load(path):
     header, scans, odom, events = None, [], [], []
-    with open(path, encoding="utf-8") as f:
+    opener = gzip.open if path.endswith(".gz") else open
+    with opener(path, "rt", encoding="utf-8") as f:
         for n, line in enumerate(f, 1):
             line = line.strip()
             if not line:
@@ -138,7 +140,7 @@ def main():
         ax_scan.set_title(f"Last scan, t = {last['t']:.1f} s, {missing} beams without return")
         ax_scan.legend(loc="best", fontsize=8)
     ax_scan.set_xlabel("x forward [m]")
-    ax_scan.set_ylabel("y left [m] (if LDS is counter-clockwise)")
+    ax_scan.set_ylabel("y left [m]")
     ax_scan.set_aspect("equal")
     ax_scan.grid(alpha=0.3)
 
