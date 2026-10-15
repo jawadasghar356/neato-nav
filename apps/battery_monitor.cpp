@@ -1,9 +1,9 @@
-// First program for the REAL robot. Works today, on dock power, no TestMode needed.
-// It reads the charging status every N seconds, prints it and logs it to a CSV,
-// so you can see whether the battery voltage is rising.
+// Polls GetCharger on the real robot at a fixed interval, prints the values and appends them
+// to a CSV file. Works on dock power without TestMode. The serial port must not be open in
+// another program (e.g. PuTTY).
 //
-// Usage:  battery_monitor COM9 60 battery_log.csv
-//         (port, interval in seconds, CSV file)  -- close PuTTY first!
+// Usage: battery_monitor [port] [interval_s] [csv]
+//        defaults: /dev/ttyACM0 (Windows: COM9), 60, battery_log.csv
 #include <chrono>
 #include <ctime>
 #include <fstream>
@@ -30,7 +30,11 @@ static std::string timestamp() {
 }
 
 int main(int argc, char** argv) {
+    #ifdef _WIN32
     const std::string port = argc > 1 ? argv[1] : "COM9";
+#else
+    const std::string port = argc > 1 ? argv[1] : "/dev/ttyACM0";
+#endif
     const int interval_s = argc > 2 ? std::stoi(argv[2]) : 60;
     const std::string csv_path = argc > 3 ? argv[3] : "battery_log.csv";
 
