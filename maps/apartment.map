@@ -1,0 +1,80 @@
+# ============================================================================
+#  Jawad's apartment, Deggendorf  -  simulation map for the Neato D3
+# ============================================================================
+#  Units: metres, angles in degrees. Everything after '#' is a comment.
+#
+#  Coordinate frame (seen from above):
+#    origin  = back corner on the kitchen side (behind where the photos were taken)
+#    x       -> along the room, towards the entrance door
+#    y       -> across the room, from the kitchen wall (y = 0) to the wardrobe wall
+#
+#  !! ALL DIMENSIONS ARE ESTIMATED FROM PHOTOS !!
+#  Measure with a tape and correct the numbers - no recompiling needed.
+#  The LiDAR scans at about 9 cm above the floor, so only things that reach
+#  down to that height matter (table top and hanging coats are invisible to it).
+#
+#  Commands:
+#    room      W H                          size, used for drawing
+#    material  name reflectivity mirror colour
+#              reflectivity 0..1 (white paint ~0.85, black ~0.1)
+#              mirror 0..1 = chance that a beam reflects like a mirror (glass)
+#    wall      x1 y1 x2 y2 material
+#    box       name x0 y0 x1 y1 material    axis-aligned rectangle obstacle
+#    circle    name cx cy r material        round obstacle (stools, robots)
+#    start     x y heading                  robot pose in front of its dock
+#    waypoint  x y                          mission route, in order
+# ============================================================================
+
+room 5.20 2.45
+
+material wall            0.85 0.00 e7e3dc
+material door            0.80 0.00 f6f5f2
+material oak             0.60 0.00 c39a6b
+material white_gloss     0.80 0.02 f4f4f1
+material black_glass     0.08 0.40 23272e
+material black_metal     0.12 0.00 2b2e34
+material leather_orange  0.55 0.00 e8742a
+material cardboard       0.50 0.00 c8a574
+material white_plastic   0.80 0.00 fbfbfa
+material black_plastic   0.15 0.00 30343b
+
+# --- Room shell --------------------------------------------------------------
+wall 0.00 0.00 5.20 0.00 wall          # kitchen-side wall
+wall 0.00 2.45 5.20 2.45 wall          # wardrobe-side wall
+wall 0.00 0.00 0.00 2.45 wall          # back wall (not in the photos: please check!)
+wall 5.20 0.00 5.20 0.85 wall          # entrance wall, right of the door
+wall 5.20 0.85 5.20 1.75 door          # entrance door (closed)
+wall 5.20 1.75 5.20 2.45 wall          # entrance wall, left of the door
+
+# --- Wardrobe side (left when you face the door) -----------------------------
+box wardrobe        0.00 1.83 1.25 2.45 oak
+box table_pedestal  1.915 2.065 1.985 2.135 black_metal   # only the column is low enough to be seen
+circle stool_1      1.55 1.90 0.19 leather_orange
+circle stool_2      2.35 1.65 0.19 leather_orange
+box box_large       2.45 2.00 2.95 2.40 cardboard
+box box_small       2.95 2.10 3.30 2.42 cardboard
+
+# --- Kitchen side (right when you face the door) -----------------------------
+box neato_dock      0.25 0.00 0.60 0.10 black_plastic
+box ecovacs_station 0.85 0.00 1.25 0.40 white_plastic
+circle ecovacs_n8   1.05 0.58 0.175 white_plastic
+box kitchen         1.90 0.00 4.65 0.57 white_gloss
+box oven_door       3.05 0.57 3.65 0.585 black_glass     # black glass: weak and mirror-like returns
+
+# --- Robot -------------------------------------------------------------------
+start 0.42 0.30 90                      # docked, facing into the room
+
+# One mission: leave the dock, visit the door area, come back in front of the dock.
+# After the last waypoint the robot turns round and reverses onto the dock,
+# like the real Neato (charging contacts are at its round back).
+waypoint 0.42 1.15
+waypoint 1.25 1.10
+waypoint 3.00 1.05
+waypoint 4.55 1.10
+waypoint 4.40 1.95
+waypoint 3.55 1.75
+waypoint 3.00 1.05
+waypoint 1.25 1.10
+waypoint 0.75 1.45
+waypoint 0.42 1.15
+waypoint 0.42 0.62

@@ -1,0 +1,17 @@
+# Build output
+build/
+out/
+cmake-build-*/
+
+# Editor settings that are personal
+.vscode/*
+!.vscode/extensions.json
+
+# Logs and recordings produced at runtime (real datasets go in data/)
+*.log
+battery_log.csv
+sim_log.json
+
+# OS junk
+.DS_Store
+Thumbs.db

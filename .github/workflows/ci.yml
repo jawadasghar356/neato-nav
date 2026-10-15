@@ -1,0 +1,20 @@
+# Continuous integration: every push and pull request is built and tested on a clean Ubuntu machine.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build -j
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure
+      - name: Simulation smoke test
+        run: ./build/apartment_sim maps/apartment.map build/sim_log.json 1

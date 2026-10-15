@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+</head>
+<body>
+<title>Neato Apartment Sim</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+[hidden] { display: none !important; }
+/* Layout: one working screen. Floor plan as the hero, transport bar under it,
+   a narrow instrument column on the right (stacks below on phones). */
+:root {
+  --bg: #f1f3f0;
+  --panel: #ffffff;
+  --ink: #1a1f24;
+  --muted: #5b646d;
+  --line: #dde2dd;
+  --floor: #ece4d7;
+  --plank: rgba(110, 88, 60, 0.11);
+  --wall: #2b3037;
+  --truth: #1f6fd1;
+  --belief: #7b4fd6;
+  --lidar: #0b9c8b;
+  --ghost: #d6336c;
+  --danger: #d64545;
+  --good: #1f8a5b;
+  --accent: #0b9c8b;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111417; --panel: #191d21; --ink: #e7eaed; --muted: #9aa3ac; --line: #2a3036;
+    --floor: #23272b; --plank: rgba(255, 255, 255, 0.045); --wall: #c7ccd2;
+    --truth: #5ea4ff; --belief: #a88bff; --lidar: #2fd2bd; --ghost: #ff6f9c;
+    --danger: #ff6b6b; --good: #4cc68b; --accent: #2fd2bd; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111417; --panel: #191d21; --ink: #e7eaed; --muted: #9aa3ac; --line: #2a3036;
+  --floor: #23272b; --plank: rgba(255, 255, 255, 0.045); --wall: #c7ccd2;
+  --truth: #5ea4ff; --belief: #a88bff; --lidar: #2fd2bd; --ghost: #ff6f9c;
+  --danger: #ff6b6b; --good: #4cc68b; --accent: #2fd2bd; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px;
+  line-height: 1.45; padding-inline: 16px; padding-block: 18px 28px;
+}
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 14px; }
+
+header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 10px 20px; }
+h1 {
+  font-family: var(--font-display); font-stretch: 118%; font-weight: 750; font-size: 1.55rem;
+  letter-spacing: -0.01em; margin: 0; line-height: 1.1; text-wrap: balance;
+}
+.sub { color: var(--muted); margin: 4px 0 0; font-size: 0.92rem; }
+.head-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.btn {
+  font: 600 0.85rem var(--font-body); color: var(--ink); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.btn:hover { border-color: var(--muted); }
+.btn:focus-visible, input:focus-visible, .seg button:focus-visible, .toggle input:focus-visible + span {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.chip {
+  font: 500 0.75rem var(--font-data); padding: 3px 8px; border-radius: 99px;
+  border: 1px solid var(--line); color: var(--muted); white-space: nowrap;
+}
+.chip.bad { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
+.chip.ok { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, var(--line)); }
+
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; align-items: start; }
+@media (max-width: 920px) { .main { grid-template-columns: minmax(0, 1fr); } }
+
+.stage { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; min-width: 0; }
+.plan-wrap { position: relative; }
+canvas#plan { display: block; width: 100%; height: auto; touch-action: none; }
+
+.transport {
+  display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  padding: 10px 14px; border-top: 1px solid var(--line);
+}
+@media (max-width: 560px) {
+  .transport { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .transport .clock { grid-column: 1 / -1; order: 4; }
+}
+.play {
+  width: 38px; height: 38px; border-radius: 50%; border: none; cursor: pointer;
+  background: var(--ink); color: var(--panel); display: grid; place-items: center;
+}
+.play svg { width: 14px; height: 14px; fill: currentColor; }
+.clock { font: 500 0.85rem var(--font-data); font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+.clock b { color: var(--ink); font-weight: 500; }
+.scrub { position: relative; height: 28px; display: flex; align-items: center; min-width: 0; }
+.scrub input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
+.ticks { position: absolute; left: 0; right: 0; top: 0; height: 6px; pointer-events: none; }
+.ticks i { position: absolute; top: 0; width: 2px; height: 6px; border-radius: 1px; background: var(--danger); transform: translateX(-1px); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button {
+  font: 500 0.78rem var(--font-data); background: transparent; color: var(--muted); border: none;
+  padding: 6px 9px; cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+
+aside { display: grid; gap: 12px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 10px; min-width: 0; }
+.card h2 {
+  margin: 0; font: 650 0.72rem var(--font-body); letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted);
+}
+.hero-num { display: flex; align-items: baseline; gap: 8px; }
+.hero-num .v { font: 500 2.3rem var(--font-data); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1; }
+.hero-num .u { color: var(--muted); font-size: 0.9rem; }
+.hero-num + p { margin: -4px 0 0; color: var(--muted); font-size: 0.82rem; }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.stat { display: grid; gap: 1px; }
+.stat span { font-size: 0.75rem; color: var(--muted); }
+.stat b { font: 500 1.02rem var(--font-data); font-variant-numeric: tabular-nums; }
+canvas#err { width: 100%; height: 92px; display: block; }
+
+.toggles { display: grid; gap: 7px; }
+.toggle { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 0.88rem; }
+.toggle input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.toggle span.box {
+  width: 30px; height: 18px; border-radius: 99px; background: var(--line); position: relative; flex: none; transition: background .15s;
+}
+.toggle span.box::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--panel); transition: transform .15s;
+}
+.toggle input:checked + span.box { background: var(--accent); }
+.toggle input:checked + span.box::after { transform: translateX(12px); }
+.legend { display: grid; gap: 6px; font-size: 0.82rem; color: var(--muted); }
+.legend div { display: flex; align-items: center; gap: 8px; }
+.sw { width: 18px; height: 0; border-top: 3px solid; flex: none; }
+.sw.dash { border-top-style: dashed; }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; margin-inline: 5px; }
+
+.note { font-size: 0.8rem; color: var(--muted); margin: 0; }
+.note code { font-family: var(--font-data); font-size: 0.78rem; }
+.missions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.empty { padding: 48px 24px; text-align: center; display: grid; gap: 10px; justify-items: center; }
+.empty h2 { font: 700 1.1rem var(--font-display); font-stretch: 112%; margin: 0; text-transform: none; letter-spacing: 0; color: var(--ink); }
+.empty p { margin: 0; color: var(--muted); max-width: 46ch; }
+.drop-hint {
+  position: fixed; inset: 0; background: color-mix(in srgb, var(--bg) 82%, transparent); display: grid; place-items: center;
+  font: 650 1.1rem var(--font-display); color: var(--ink); border: 3px dashed var(--accent); z-index: 10;
+}
+@media (prefers-reduced-motion: reduce) { .toggle span.box, .toggle span.box::after { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Neato Apartment Sim</h1>
+      <p class="sub" id="subtitle">Simulated Neato Botvac D3 driving in Jawad's apartment, Deggendorf</p>
+    </div>
+    <div class="head-actions">
+      <span class="chip" id="runChip">no run loaded</span>
+      <label class="btn" for="fileInput">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12m0-12l-4 4m4-4l4 4M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4"/></svg>
+        Load sim_log.json
+      </label>
+      <input id="fileInput" type="file" accept=".json,application/json" hidden>
+    </div>
+  </header>
+
+  <div class="main">
+    <section class="stage" aria-label="Floor plan playback">
+      <div class="plan-wrap"><canvas id="plan" aria-label="Floor plan of the apartment with the robot, its LiDAR scan and paths"></canvas></div>
+      <div class="empty" id="empty" hidden>
+        <h2>No simulation run loaded</h2>
+        <p>Run <code>apartment_sim</code>, then load the <code>sim_log.json</code> it writes, or drop the file anywhere on this page.</p>
+      </div>
+      <div class="transport" id="transport">
+        <button class="play" id="playBtn" aria-label="Play">
+          <svg viewBox="0 0 16 16" id="playIcon"><path d="M3 1.5v13l11-6.5z"/></svg>
+        </button>
+        <div class="clock"><b id="tNow">00:00.0</b> / <span id="tEnd">00:00.0</span></div>
+        <div class="scrub">
+          <div class="ticks" id="ticks"></div>
+          <input type="range" id="scrub" min="0" max="100" step="0.1" value="0" aria-label="Playback position">
+        </div>
+        <div class="seg" role="group" aria-label="Playback speed">
+          <button data-speed="1" aria-pressed="false">1×</button>
+          <button data-speed="2" aria-pressed="false">2×</button>
+          <button data-speed="4" aria-pressed="true">4×</button>
+          <button data-speed="8" aria-pressed="false">8×</button>
+        </div>
+      </div>
+    </section>
+
+    <aside>
+      <div class="card">
+        <h2>Where it thinks it is vs. where it is</h2>
+        <div class="hero-num"><span class="v" id="errNow">0.0</span><span class="u">cm position error</span></div>
+        <p>Gap between the true pose and the wheel-odometry estimate.</p>
+        <canvas id="err" aria-label="Position error over time"></canvas>
+        <div class="stats">
+          <div class="stat"><span>Heading error</span><b id="sHead">0.0°</b></div>
+          <div class="stat"><span>Distance driven</span><b id="sDist">0.00 m</b></div>
+          <div class="stat"><span>LiDAR returns</span><b id="sValid">0 %</b></div>
+          <div class="stat"><span>Ghost returns</span><b id="sGhost">0</b></div>
+          <div class="stat"><span>Bumper hits</span><b id="sBumps">0</b></div>
+          <div class="stat"><span>Missions</span><b id="sMis">0</b></div>
+        </div>
+        <div class="missions" id="missionChips"></div>
+      </div>
+
+      <div class="card">
+        <h2>Layers</h2>
+        <div class="toggles">
+          <label class="toggle"><input type="checkbox" id="tRays" checked><span class="box"></span>LiDAR beams</label>
+          <label class="toggle"><input type="checkbox" id="tBelief" checked><span class="box"></span>Robot's belief and its scan</label>
+          <label class="toggle"><input type="checkbox" id="tTrails" checked><span class="box"></span>Paths</label>
+          <label class="toggle"><input type="checkbox" id="tLabels" checked><span class="box"></span>Furniture labels</label>
+        </div>
+        <div class="legend">
+          <div><i class="sw" style="border-color:var(--truth)"></i>True path</div>
+          <div><i class="sw dash" style="border-color:var(--belief)"></i>Belief from wheel odometry</div>
+          <div><i class="dot" style="background:var(--lidar)"></i>LiDAR hit, drawn at the true pose</div>
+          <div><i class="dot" style="background:var(--ghost)"></i>Ghost hit: reflection from glass or gloss</div>
+          <div><i class="dot" style="background:var(--belief)"></i>Same scan, placed at the belief pose</div>
+        </div>
+      </div>
+
+      <p class="note" id="paramNote">Dimensions are estimated from photos. Correct them in <code>maps/apartment.map</code> and run the simulation again.</p>
+    </aside>
+  </div>
+</div>
+<div class="drop-hint" id="dropHint" hidden>Drop sim_log.json to load it</div>
+
+<script id="sim-data" type="application/json">__SIM_DATA__</script>
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const plan = $("plan"), pctx = plan.getContext("2d");
+  const errC = $("err"), ectx = errC.getContext("2d");
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  let D = null;            // loaded run
+  let t = 0, playing = false, speed = 4, lastTs = 0;
+  let view = null;         // world -> screen transform
+  let staticLayer = null;  // pre-rendered floor and furniture
+  let colors = {};
+
+  const PRETTY = {
+    wardrobe: "Wardrobe", kitchen: "Kitchenette", ecovacs_station: "Ecovacs station", ecovacs_n8: "Ecovacs N8",
+    neato_dock: "Neato dock", stool_1: "Stool", stool_2: "Stool", box_large: "Boxes", box_small: "",
+    oven_door: "Oven glass", table_pedestal: "Table"
+  };
+  const pretty = (n) => (n in PRETTY ? PRETTY[n] : n.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase()));
+
+  function readColors() {
+    const cs = getComputedStyle(document.documentElement);
+    for (const k of ["panel", "ink", "muted", "line", "floor", "plank", "wall", "truth", "belief", "lidar", "ghost", "danger"])
+      colors[k] = cs.getPropertyValue("--" + k).trim();
+  }
+
+  // ---------- data ----------
+  function prepare(data) {
+    if (!data || !Array.isArray(data.frames) || !data.frames.length || !data.map) throw new Error("This file is not a sim_log.json from apartment_sim.");
+    const F = data.frames;
+    let acc = 0;
+    F[0].dist = 0;
+    for (let i = 1; i < F.length; i++) {
+      acc += Math.hypot(F[i].tp[0] - F[i - 1].tp[0], F[i].tp[1] - F[i - 1].tp[1]);
+      F[i].dist = acc;
+    }
+    let bumps = 0;
+    for (const f of F) { if (f.b) bumps++; f.bumpsSoFar = bumps; f.err = Math.hypot(f.tp[0] - f.op[0], f.tp[1] - f.op[1]); }
+    data.step = data.meta.beam_step_deg || 2;
+    data.duration = F[F.length - 1].t;
+    return data;
+  }
+
+  function load(data) {
+    try { D = prepare(data); } catch (e) { showEmpty(e.message); return; }
+    $("empty").hidden = true; plan.hidden = false; $("transport").hidden = false;
+    const m = D.meta;
+    $("scrub").max = D.duration.toFixed(1);
+    $("tEnd").textContent = fmtTime(D.duration);
+    $("runChip").textContent = `${m.docked ? m.docked.length : "?"} missions · ${m.distance.toFixed(1)} m`;
+    $("sMis").textContent = m.docked ? m.docked.length : "–";
+    const chips = $("missionChips"); chips.textContent = "";
+    (m.docked || []).forEach((ok, i) => {
+      const c = document.createElement("span");
+      c.className = "chip " + (ok ? "ok" : "bad");
+      c.textContent = `Mission ${i + 1}: ${ok ? "docked" : "missed dock"}`;
+      chips.appendChild(c);
+    });
+    $("paramNote").innerHTML = `Encoder mismatch ${m.encoder_mismatch_percent.toFixed(1)} %, LDS 5 Hz with 1° steps (shown every ${D.step}°), no LiDAR correction yet. Dimensions are estimated from photos: correct them in <code>maps/apartment.map</code> and run again.`;
+    const ticks = $("ticks"); ticks.textContent = "";
+    for (const f of D.frames) if (f.b) {
+      const i = document.createElement("i");
+      i.style.left = (100 * f.t / D.duration) + "%";
+      ticks.appendChild(i);
+    }
+    t = 0;
+    resize();
+    setPlaying(!reduceMotion);
+  }
+
+  function showEmpty(msg) {
+    D = null; plan.hidden = true; $("transport").hidden = true; $("empty").hidden = false;
+    if (msg) $("empty").querySelector("p").textContent = msg;
+  }
+
+  // ---------- geometry helpers ----------
+  const lerp = (a, b, u) => a + (b - a) * u;
+  const lerpAng = (a, b, u) => { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return a + d * u; };
+  function frameAt(time) {
+    const F = D.frames;
+    if (time <= F[0].t) return { i: 0, u: 0 };
+    let lo = 0, hi = F.length - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (F[mid].t <= time) lo = mid; else hi = mid; }
+    const u = F[hi].t > F[lo].t ? Math.min(1, (time - F[lo].t) / (F[hi].t - F[lo].t)) : 0;
+    return { i: lo, u, hi };
+  }
+  const poseAt = (key, fa) => {
+    const a = D.frames[fa.i][key], b = D.frames[fa.hi ?? fa.i][key];
+    return [lerp(a[0], b[0], fa.u), lerp(a[1], b[1], fa.u), lerpAng(a[2], b[2], fa.u)];
+  };
+  function luminance(hex) {
+    const n = parseInt(hex.replace("#", ""), 16);
+    return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  }
+  function shade(hex, k) {
+    const n = parseInt(hex.replace("#", ""), 16);
+    const f = (c) => Math.max(0, Math.min(255, Math.round(c * k)));
+    return `rgb(${f((n >> 16) & 255)},${f((n >> 8) & 255)},${f(n & 255)})`;
+  }
+  function insideObstacle(x, y) {  // used to mark ghost points
+    const M = D.map, eps = 0.03;
+    if (x < -eps || y < -eps || x > M.size[0] + eps || y > M.size[1] + eps) return true;
+    for (const b of M.boxes) if (x > b.x0 + eps && x < b.x1 - eps && y > b.y0 + eps && y < b.y1 - eps) return true;
+    for (const c of M.circles) if (Math.hypot(x - c.cx, y - c.cy) < c.r - eps) return true;
+    return false;
+  }
+
+  // ---------- layout ----------
+  function resize() {
+    if (!D) return;
+    readColors();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const W = plan.parentElement.clientWidth;
+    const [mw, mh] = D.map.size, pad = 0.32;
+    const s = W / (mw + 2 * pad);
+    const H = Math.round((mh + 2 * pad) * s);
+    plan.width = Math.round(W * dpr); plan.height = Math.round(H * dpr);
+    plan.style.height = H + "px";
+    view = { s, dpr, ox: pad * s, oy: H - pad * s, W, H };
+    buildStatic();
+    const ew = errC.clientWidth || 260;
+    errC.width = Math.round(ew * dpr); errC.height = Math.round(92 * dpr);
+    draw();
+  }
+  const sx = (x) => view.ox + x * view.s;
+  const sy = (y) => view.oy - y * view.s;
+  function worldTransform(ctx) { ctx.setTransform(view.s * view.dpr, 0, 0, -view.s * view.dpr, view.ox * view.dpr, view.oy * view.dpr); }
+  function screenTransform(ctx) { ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0); }
+
+  function buildStatic() {
+    const M = D.map, s = view.s;
+    staticLayer = document.createElement("canvas");
+    staticLayer.width = plan.width; staticLayer.height = plan.height;
+    const c = staticLayer.getContext("2d");
+    screenTransform(c);
+    c.fillStyle = colors.panel; c.fillRect(0, 0, view.W, view.H);
+
+    // Floor with laminate planks running along the room
+    worldTransform(c);
+    c.fillStyle = colors.floor; c.fillRect(0, 0, M.size[0], M.size[1]);
+    c.strokeStyle = colors.plank; c.lineWidth = 1 / s;
+    const plankW = 0.2, plankL = 1.3;
+    for (let row = 0, y = 0; y < M.size[1]; row++, y += plankW) {
+      c.beginPath(); c.moveTo(0, y); c.lineTo(M.size[0], y); c.stroke();
+      for (let x = (row % 3) * plankL / 3; x < M.size[0]; x += plankL) {
+        c.beginPath(); c.moveTo(x, y); c.lineTo(x, Math.min(M.size[1], y + plankW)); c.stroke();
+      }
+    }
+
+    // Furniture
+    for (const b of M.boxes) {
+      const col = M.materials[b.mat].color;
+      c.fillStyle = col; c.strokeStyle = shade(col, 0.78); c.lineWidth = 1.2 / s;
+      c.beginPath(); c.rect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0); c.fill(); c.stroke();
+    }
+    for (const ci of M.circles) {
+      const col = M.materials[ci.mat].color;
+      c.fillStyle = col; c.strokeStyle = shade(col, 0.78); c.lineWidth = 1.2 / s;
+      c.beginPath(); c.arc(ci.cx, ci.cy, ci.r, 0, 2 * Math.PI); c.fill(); c.stroke();
+      if (ci.name.startsWith("ecovacs")) {  // turret of the parked robot
+        c.fillStyle = shade(col, 0.82); c.beginPath(); c.arc(ci.cx, ci.cy, ci.r * 0.28, 0, 2 * Math.PI); c.fill();
+      }
+    }
+
+    // Walls and door
+    c.lineCap = "square";
+    for (const w of M.walls) {
+      const isDoor = w[4] === "door";
+      c.strokeStyle = isDoor ? colors.muted : colors.wall;
+      c.lineWidth = (isDoor ? 3 : 7) / s;
+      c.beginPath(); c.moveTo(w[0], w[1]); c.lineTo(w[2], w[3]); c.stroke();
+      if (isDoor) {  // door swing into the room
+        const len = Math.hypot(w[2] - w[0], w[3] - w[1]);
+        c.save(); c.setLineDash([4 / s, 4 / s]); c.lineWidth = 1 / s; c.strokeStyle = colors.muted;
+        c.beginPath(); c.arc(w[2], w[3], len, -Math.PI / 2, -Math.PI, true); c.stroke(); c.restore();
+      }
+    }
+
+    // Labels and scale
+    screenTransform(c);
+    c.textBaseline = "middle"; c.textAlign = "center";
+    c.font = `600 ${Math.max(10, Math.min(12.5, s * 0.11))}px Archivo, Arial, sans-serif`;
+    c.globalAlpha = 1;
+    staticLayer.labels = [];
+    for (const b of M.boxes) {
+      const text = pretty(b.name); if (!text) continue;
+      const cx = sx((b.x0 + b.x1) / 2), w = (b.x1 - b.x0) * s, h = (b.y1 - b.y0) * s;
+      let cy = sy((b.y0 + b.y1) / 2);
+      const tw = c.measureText(text).width;
+      const touchesWall = b.y0 < 0.02 || b.y1 > M.size[1] - 0.1;
+      if (h < 14 && !touchesWall) cy = sy(b.y0) + 12;  // thin fronts (oven glass): label just inside, below
+      if (tw > Math.max(w, 70)) continue;
+      if (tw > w - 6 || (h < 14 && touchesWall)) {     // small box (dock, boxes): label beside it, room side
+        const intoRoom = b.y0 < 0.02 ? sy(b.y1) - 9 : sy(b.y0) + 9;
+        staticLayer.labels.push({ text, x: cx, y: intoRoom, dark: false, below: true });
+        continue;
+      }
+      const col = h < 14 ? "#ffffff" : M.materials[b.mat].color;
+      staticLayer.labels.push({ text, x: cx, y: cy, dark: luminance(col) < 0.45, onKitchen: h < 14 });
+    }
+    for (const ci of M.circles) {
+      const text = pretty(ci.name); if (!text) continue;
+      staticLayer.labels.push({ text, x: sx(ci.cx), y: sy(ci.cy - ci.r) + 10, dark: false, below: true });
+    }
+    // Keep labels inside the room and drop any that would collide with an earlier one
+    {
+      const fs = parseFloat(c.font.match(/(\d+(\.\d+)?)px/)[1]);
+      const left = sx(0), right = sx(M.size[0]);
+      const placed = [];
+      staticLayer.labels = staticLayer.labels.filter((L) => {
+        const tw = c.measureText(L.text).width;
+        L.x = Math.min(Math.max(L.x, left + tw / 2 + 5), right - tw / 2 - 5);
+        const r = { x0: L.x - tw / 2 - 2, x1: L.x + tw / 2 + 2, y0: L.y - fs * 0.65, y1: L.y + fs * 0.65 };
+        if (placed.some((q) => r.x0 < q.x1 && r.x1 > q.x0 && r.y0 < q.y1 && r.y1 > q.y0)) return false;
+        placed.push(r);
+        return true;
+      });
+    }
+    const labelLayer = document.createElement("canvas");
+    labelLayer.width = plan.width; labelLayer.height = plan.height;
+    const lc = labelLayer.getContext("2d"); screenTransform(lc);
+    lc.font = c.font; lc.textAlign = "center"; lc.textBaseline = "middle";
+    for (const L of staticLayer.labels) {
+      lc.fillStyle = L.dark ? "rgba(255,255,255,0.92)" : (L.below ? colors.muted : "rgba(26,31,36,0.78)");
+      lc.fillText(L.text, L.x, L.y);
+    }
+    staticLayer.labelLayer = labelLayer;
+
+    // 1 m scale bar and door label
+    c.strokeStyle = colors.muted; c.fillStyle = colors.muted; c.lineWidth = 1.5;
+    const x0 = 14, y0 = view.H - 12;
+    c.beginPath(); c.moveTo(x0, y0 - 4); c.lineTo(x0, y0); c.lineTo(x0 + s, y0); c.lineTo(x0 + s, y0 - 4); c.stroke();
+    c.font = `500 11px "IBM Plex Mono", monospace`; c.textAlign = "center"; c.fillText("1 m", x0 + s / 2, y0 - 9);
+    const door = M.walls.find((w) => w[4] === "door");
+    if (door) {
+      c.save(); c.translate(sx(door[0]) + 13, sy((door[1] + door[3]) / 2)); c.rotate(Math.PI / 2);
+      c.font = `600 10.5px Archivo, Arial, sans-serif`; c.fillText("ENTRANCE", 0, 0); c.restore();
+    }
+  }
+
+  // ---------- drawing ----------
+  function robotPath(ctx, p, m) {
+    const f = m.front ?? 0.16, hw = m.half_width ?? 0.16;
+    ctx.save(); ctx.translate(p[0], p[1]); ctx.rotate(p[2]);
+    ctx.beginPath(); ctx.moveTo(f, hw); ctx.lineTo(0, hw); ctx.arc(0, 0, hw, Math.PI / 2, 3 * Math.PI / 2); ctx.lineTo(f, -hw); ctx.closePath();
+    ctx.restore();
+  }
+
+  function trail(ctx, key, upto, color, width, dash, alpha) {
+    const F = D.frames; if (upto < 1) return;
+    ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = width / view.s;
+    ctx.lineJoin = "round"; ctx.lineCap = "round";
+    if (dash) ctx.setLineDash(dash.map((d) => d / view.s));
+    ctx.beginPath(); ctx.moveTo(F[0][key][0], F[0][key][1]);
+    for (let i = 1; i <= upto; i++) ctx.lineTo(F[i][key][0], F[i][key][1]);
+    ctx.stroke(); ctx.restore();
+  }
+
+  function draw() {
+    if (!D || !view) return;
+    const ctx = pctx, m = D.meta, s = view.s;
+    screenTransform(ctx); ctx.clearRect(0, 0, view.W, view.H);
+    ctx.drawImage(staticLayer, 0, 0, view.W, view.H);
+    const fa = frameAt(t), fr = D.frames[fa.i];
+    const tp = poseAt("tp", fa), op = poseAt("op", fa);
+    const showBelief = $("tBelief").checked;
+    worldTransform(ctx);
+
+    // Planned route, faint
+    ctx.save(); ctx.strokeStyle = colors.muted; ctx.globalAlpha = 0.35; ctx.lineWidth = 1 / s; ctx.setLineDash([3 / s, 4 / s]);
+    ctx.beginPath(); D.route.forEach((w, i) => (i ? ctx.lineTo(w[0], w[1]) : ctx.moveTo(w[0], w[1]))); ctx.stroke(); ctx.restore();
+    ctx.fillStyle = colors.muted;
+    for (const w of D.route) { ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(w[0], w[1], 2.2 / s, 0, 2 * Math.PI); ctx.fill(); }
+    ctx.globalAlpha = 1;
+
+    if ($("tTrails").checked) {
+      trail(ctx, "tp", D.frames.length - 1, colors.truth, 1.2, null, 0.16);  // whole run, faint
+      if (showBelief) trail(ctx, "op", fa.i, colors.belief, 2, [6, 5], 0.9);
+      trail(ctx, "tp", fa.i, colors.truth, 2.4, null, 0.95);
+    }
+
+    // LiDAR scan of the current LDS turn
+    const lp = (p) => [p[0] + m.lds_offset * Math.cos(p[2]), p[1] + m.lds_offset * Math.sin(p[2]), p[2]];
+    const L = lp(tp), Lb = lp(op);
+    const rays = $("tRays").checked;
+    const hits = [];
+    fr.r.forEach((cm, k) => {
+      if (!cm) return;
+      const a = (k * D.step) * Math.PI / 180, r = cm / 100;
+      hits.push([L[0] + r * Math.cos(L[2] + a), L[1] + r * Math.sin(L[2] + a), Lb[0] + r * Math.cos(Lb[2] + a), Lb[1] + r * Math.sin(Lb[2] + a)]);
+    });
+    if (rays) {
+      ctx.save(); ctx.strokeStyle = colors.lidar; ctx.globalAlpha = 0.13; ctx.lineWidth = 1 / s; ctx.beginPath();
+      for (const h of hits) { ctx.moveTo(L[0], L[1]); ctx.lineTo(h[0], h[1]); }
+      ctx.stroke(); ctx.restore();
+    }
+    if (showBelief) {
+      ctx.fillStyle = colors.belief; ctx.globalAlpha = 0.75;
+      for (const h of hits) { ctx.beginPath(); ctx.arc(h[2], h[3], 1.7 / s, 0, 2 * Math.PI); ctx.fill(); }
+    }
+    ctx.globalAlpha = 1;
+    for (const h of hits) {
+      ctx.fillStyle = insideObstacle(h[0], h[1]) ? colors.ghost : colors.lidar;
+      ctx.beginPath(); ctx.arc(h[0], h[1], 2.3 / s, 0, 2 * Math.PI); ctx.fill();
+    }
+
+    // Belief robot outline
+    if (showBelief) {
+      robotPath(ctx, op, m);
+      ctx.save(); ctx.setLineDash([4 / s, 3 / s]); ctx.strokeStyle = colors.belief; ctx.lineWidth = 1.6 / s; ctx.stroke(); ctx.restore();
+    }
+
+    // True robot: D-shaped body, flat front, LDS turret behind the wheel axle
+    ctx.save(); ctx.shadowColor = "rgba(0,0,0,0.25)"; ctx.shadowBlur = 6 * view.dpr; ctx.shadowOffsetY = -2 * view.dpr;
+    robotPath(ctx, tp, m); ctx.fillStyle = "#3a3f47"; ctx.fill(); ctx.restore();
+    robotPath(ctx, tp, m); ctx.strokeStyle = "#20242a"; ctx.lineWidth = 1.2 / s; ctx.stroke();
+    ctx.save(); ctx.translate(tp[0], tp[1]); ctx.rotate(tp[2]);
+    ctx.fillStyle = "#4a5059"; ctx.fillRect(0.11, -0.14, 0.035, 0.28);       // bumper strip at the front
+    ctx.fillStyle = "#15181c"; ctx.beginPath(); ctx.arc(m.lds_offset, 0, 0.048, 0, 2 * Math.PI); ctx.fill();
+    ctx.fillStyle = colors.lidar; ctx.beginPath(); ctx.arc(m.lds_offset, 0, 0.012, 0, 2 * Math.PI); ctx.fill();
+    ctx.restore();
+
+    // Bump flash
+    const lastBump = [...D.frames.slice(Math.max(0, fa.i - 6), fa.i + 1)].reverse().find((f) => f.b);
+    if (lastBump && t - lastBump.t < 0.9) {
+      const k = 1 - (t - lastBump.t) / 0.9;
+      ctx.save(); ctx.strokeStyle = colors.danger; ctx.globalAlpha = k; ctx.lineWidth = 3 / s;
+      ctx.beginPath(); ctx.arc(tp[0], tp[1], 0.24 + (1 - k) * 0.12, 0, 2 * Math.PI); ctx.stroke(); ctx.restore();
+    }
+
+    screenTransform(ctx);
+    if ($("tLabels").checked) ctx.drawImage(staticLayer.labelLayer, 0, 0, view.W, view.H);
+
+    // Readouts
+    const err = Math.hypot(tp[0] - op[0], tp[1] - op[1]);
+    let dh = Math.abs(tp[2] - op[2]) % (2 * Math.PI); if (dh > Math.PI) dh = 2 * Math.PI - dh;
+    $("errNow").textContent = (err * 100).toFixed(1);
+    $("sHead").textContent = (dh * 180 / Math.PI).toFixed(1) + "°";
+    $("sDist").textContent = fr.dist.toFixed(2) + " m";
+    $("sValid").textContent = Math.round(100 * fr.r.filter((v) => v > 0).length / fr.r.length) + " %";
+    $("sGhost").textContent = fr.g;
+    $("sBumps").textContent = fr.bumpsSoFar;
+    $("tNow").textContent = fmtTime(t);
+    if (document.activeElement !== $("scrub")) $("scrub").value = t.toFixed(1);
+    drawErr(fa.i);
+  }
+
+  function drawErr(cur) {
+    const F = D.frames, dpr = view.dpr, w = errC.width / dpr, h = errC.height / dpr;
+    const ctx = ectx; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+    const maxE = Math.max(0.1, Math.ceil(Math.max(...F.map((f) => f.err)) * 10) / 10);
+    const padL = 30, padB = 14, padT = 6, gw = w - padL - 4, gh = h - padB - padT;
+    const X = (tt) => padL + gw * tt / D.duration, Y = (e) => padT + gh * (1 - e / maxE);
+    ctx.font = `500 10px "IBM Plex Mono", monospace`; ctx.fillStyle = colors.muted; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    const step = maxE > 0.3 ? 0.2 : 0.1;
+    ctx.strokeStyle = colors.line; ctx.lineWidth = 1;
+    for (let e = 0; e <= maxE + 1e-9; e += step) {
+      ctx.beginPath(); ctx.moveTo(padL, Y(e)); ctx.lineTo(w - 4, Y(e)); ctx.stroke();
+      ctx.fillText(Math.round(e * 100) + "", padL - 5, Y(e));
+    }
+    ctx.textAlign = "left"; ctx.fillText("cm", 0, padT + 2);
+    // area up to now, faint line for the rest
+    ctx.beginPath(); ctx.moveTo(X(F[0].t), Y(0));
+    for (let i = 0; i <= cur; i++) ctx.lineTo(X(F[i].t), Y(F[i].err));
+    ctx.lineTo(X(F[cur].t), Y(0)); ctx.closePath();
+    ctx.fillStyle = colors.belief; ctx.globalAlpha = 0.16; ctx.fill(); ctx.globalAlpha = 1;
+    ctx.strokeStyle = colors.belief; ctx.lineWidth = 1.6; ctx.beginPath();
+    for (let i = 0; i <= cur; i++) (i ? ctx.lineTo(X(F[i].t), Y(F[i].err)) : ctx.moveTo(X(F[i].t), Y(F[i].err)));
+    ctx.stroke();
+    ctx.globalAlpha = 0.25; ctx.lineWidth = 1; ctx.beginPath();
+    for (let i = cur; i < F.length; i++) (i > cur ? ctx.lineTo(X(F[i].t), Y(F[i].err)) : ctx.moveTo(X(F[i].t), Y(F[i].err)));
+    ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.fillStyle = colors.danger;
+    for (const f of F) if (f.b) ctx.fillRect(X(f.t) - 1, h - padB + 3, 2, 6);
+    ctx.fillStyle = colors.belief; ctx.beginPath(); ctx.arc(X(F[cur].t), Y(F[cur].err), 3.2, 0, 2 * Math.PI); ctx.fill();
+    ctx.fillStyle = colors.muted; ctx.textAlign = "right"; ctx.fillText(fmtTime(D.duration), w - 4, h - 5);
+    ctx.textAlign = "left"; ctx.fillText("0:00", padL, h - 5);
+  }
+
+  // ---------- playback ----------
+  function fmtTime(s) { const m = Math.floor(s / 60), r = s - m * 60; return String(m).padStart(2, "0") + ":" + r.toFixed(1).padStart(4, "0"); }
+  function setPlaying(p) {
+    playing = p && !!D;
+    $("playBtn").setAttribute("aria-label", playing ? "Pause" : "Play");
+    $("playIcon").innerHTML = playing ? '<path d="M3 1.5h3.6v13H3zM9.4 1.5H13v13H9.4z"/>' : '<path d="M3 1.5v13l11-6.5z"/>';
+    lastTs = 0;
+    if (playing) requestAnimationFrame(tick);
+  }
+  function tick(ts) {
+    if (!playing) return;
+    if (lastTs) t = Math.min(D.duration, t + (ts - lastTs) / 1000 * speed);
+    lastTs = ts;
+    draw();
+    if (t >= D.duration) { setPlaying(false); return; }
+    requestAnimationFrame(tick);
+  }
+
+  $("playBtn").addEventListener("click", () => { if (D && t >= D.duration) t = 0; setPlaying(!playing); });
+  $("scrub").addEventListener("input", (e) => { t = parseFloat(e.target.value); draw(); });
+  document.querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => {
+    speed = parseFloat(b.dataset.speed);
+    document.querySelectorAll(".seg button").forEach((o) => o.setAttribute("aria-pressed", String(o === b)));
+  }));
+  ["tRays", "tBelief", "tTrails", "tLabels"].forEach((id) => $(id).addEventListener("change", draw));
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Space" && e.target === document.body) { e.preventDefault(); $("playBtn").click(); }
+  });
+
+  // ---------- loading files ----------
+  function readFile(file) {
+    const fr = new FileReader();
+    fr.onload = () => { try { load(JSON.parse(fr.result)); } catch (err) { showEmpty("Could not read this file: " + err.message); } };
+    fr.readAsText(file);
+  }
+  $("fileInput").addEventListener("change", (e) => { if (e.target.files[0]) readFile(e.target.files[0]); });
+  let dragDepth = 0;
+  window.addEventListener("dragenter", (e) => { e.preventDefault(); dragDepth++; $("dropHint").hidden = false; });
+  window.addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; $("dropHint").hidden = true; } });
+  window.addEventListener("dragover", (e) => e.preventDefault());
+  window.addEventListener("drop", (e) => {
+    e.preventDefault(); dragDepth = 0; $("dropHint").hidden = true;
+    if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]);
+  });
+
+  // ---------- theme and size ----------
+  let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(resize, 120); });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", resize);
+  new MutationObserver(resize).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  // ---------- start ----------
+  const embedded = $("sim-data").textContent.trim();
+  const start = () => {
+    if (embedded && !embedded.startsWith("__")) {
+      try { load(JSON.parse(embedded)); } catch (e) { showEmpty("The embedded run could not be read."); }
+    } else showEmpty();
+  };
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(start); else start();
+})();
+</script>
+
+</body>
+</html>
